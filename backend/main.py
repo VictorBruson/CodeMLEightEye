@@ -1,10 +1,7 @@
-from typing import Any
+from fastapi import FastAPI
 
+app = FastAPI()
 
-def create_app() -> Any:
-    """Create and configure the backend application."""
-    raise NotImplementedError("Choose an API framework and implement app setup.")
-
-
-if __name__ == "__main__":
-    create_app()
+@app.get("/")
+def read_root():
+    return {"message": "Hello World"}
