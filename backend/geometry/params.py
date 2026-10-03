@@ -18,6 +18,9 @@ class FrameParams:
     bridge_height: float = 4.0
     bridge_thickness: float = 3.0
 
+    bridge_offset_y: float = 0.0
+    simplify_tol: float = 0.02
+
     @classmethod
     def from_dict(cls, overrides=None):
         """Build params from the contract's `params` object.
