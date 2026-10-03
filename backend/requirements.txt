@@ -1,0 +1,4 @@
+shapely>=2
+numpy
+pytest
+opencv-python
