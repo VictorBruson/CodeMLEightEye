@@ -89,28 +89,36 @@ def retention_layers(p):
     return layers
 
 
-def build_solid(placed, bridge, tenons, params):
-    p = params
-    # 1. rims: each lens grown by clearance + wall (filled lens for now)
-    outers = [_clean(poly.buffer(p.clearance + p.wall, join_style="round"), p.simplify_tol)
-              for poly in placed.values()]
+def build_solid(placed, bridge, tenons, params_by_eye):
+    """placed: dict mapping eye ('L', 'R') to Polygon
+    params_by_eye: dict mapping eye ('L', 'R') to FrameParams
+    """
+    # 1. rims: each lens grown by its clearance + wall
+    outers = []
+    for eye, poly in placed.items():
+        p = params_by_eye[eye]
+        outer = _clean(poly.buffer(p.clearance + p.wall, join_style="round"), p.simplify_tol)
+        outers.append(outer)
     rims = unary_union(outers)
 
+    primary_params = params_by_eye.get("L", list(params_by_eye.values())[0])
+
     # 2. extrude rims at full thickness, bridge at its own (thinner) thickness
-    parts = _extrude(rims, p.thickness) + _extrude(bridge, p.bridge_thickness)
+    parts = _extrude(rims, primary_params.thickness) + _extrude(bridge, primary_params.bridge_thickness)
     for t in tenons.values():
-        parts += _extrude(t["poly"], p.tenon_thickness)
+        parts += _extrude(t["poly"], primary_params.tenon_thickness)
     solid = trimesh.boolean.union(parts, engine="manifold")
 
-    # 3. cut the lens openings layer by layer (ledge, pocket, entry lip), then the
-    #    tenon pin holes straight through the full depth (with margin)
+    # 3. cut the lens openings layer by layer per-lens
     pieces = []
-    for offset, z_bottom, z_top in retention_layers(p):
-        shape = unary_union([_clean(poly.buffer(offset, join_style="round"), p.simplify_tol)
-                             for poly in placed.values()])
-        pieces += _extrude(shape, (z_top - z_bottom) + EPS, z0=z_bottom)
+    for eye, poly in placed.items():
+        p = params_by_eye[eye]
+        for offset, z_bottom, z_top in retention_layers(p):
+            shape = _clean(poly.buffer(offset, join_style="round"), p.simplify_tol)
+            pieces += _extrude(shape, (z_top - z_bottom) + EPS, z0=z_bottom)
+
     pins = unary_union([t["hole"] for t in tenons.values()])
-    pieces += _extrude(pins, p.thickness + 2.0, z0=-1.0)
+    pieces += _extrude(pins, primary_params.thickness + 2.0, z0=-1.0)
     cutter = trimesh.boolean.union(pieces, engine="manifold")
     frame = trimesh.boolean.difference([solid, cutter], engine="manifold")
     frame.merge_vertices()

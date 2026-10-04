@@ -56,3 +56,4 @@ export async function generateFrame(contract: Record<string, unknown>): Promise<
   }
   return response.json() as Promise<FrameApiResponse>;
 }
+

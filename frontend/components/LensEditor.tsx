@@ -4,6 +4,7 @@ export interface ContractLens {
     eye: 'L' | 'R';
     points_mm: [number, number][];
     flipped?: boolean;
+    params?: Record<string, number>;
     [key: string]: unknown;
 }
 
@@ -13,6 +14,13 @@ export interface BuildContract {
     dbl_mm: number;
     params?: Record<string, number>;
     [key: string]: unknown;
+}
+
+interface LensParams {
+    clearance: number;
+    wall: number;
+    groove_depth: number;
+    lens_edge_thickness: number;
 }
 
 interface LensEditorProps {
@@ -30,27 +38,29 @@ export const LensEditor: React.FC<LensEditorProps> = ({
                                                           onUpdateContract,
                                                           isGenerating = false,
                                                       }) => {
-    const [clearance, setClearance] = useState<number>(
-        (initialContract.params?.clearance as number) ?? 0.2
-    );
-    const [wall, setWall] = useState<number>(
-        (initialContract.params?.wall as number) ?? 3.0
-    );
-    const [grooveDepth, setGrooveDepth] = useState<number>(
-        (initialContract.params?.groove_depth as number) ?? 0.5
-    );
-    const [grooveWidth, setGrooveWidth] = useState<number>(
-        (initialContract.params?.lens_edge_thickness as number) ?? 2.0
-    );
+    const [selectedEye, setSelectedEye] = useState<'L' | 'R'>('L');
     const [dbl, setDbl] = useState<number>(initialContract.dbl_mm ?? 18);
 
-    const [selectedEye, setSelectedEye] = useState<'L' | 'R'>('L');
+    // Helper to extract params with fallbacks: Lens params -> Global params -> Defaults
+    const extractParams = (lens?: ContractLens): LensParams => ({
+        clearance: (lens?.params?.clearance as number) ?? (initialContract.params?.clearance as number) ?? 0.2,
+        wall: (lens?.params?.wall as number) ?? (initialContract.params?.wall as number) ?? 3.0,
+        groove_depth: (lens?.params?.groove_depth as number) ?? (initialContract.params?.groove_depth as number) ?? 0.5,
+        lens_edge_thickness: (lens?.params?.lens_edge_thickness as number) ?? (initialContract.params?.lens_edge_thickness as number) ?? 2.0,
+    });
+
+    // Independent parameter states for Left and Right lenses
+    const [leftParams, setLeftParams] = useState<LensParams>(() => extractParams(initialContract.left));
+    const [rightParams, setRightParams] = useState<LensParams>(() => extractParams(initialContract.right));
+
+    // Contour points for the currently selected eye
     const [points, setPoints] = useState<[number, number][]>([]);
     const [selectedPointIdx, setSelectedPointIdx] = useState<number | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const svgRef = useRef<SVGSVGElement>(null);
 
+    // Sync active eye contour points on switch
     useEffect(() => {
         const lensData = selectedEye === 'L' ? initialContract.left : initialContract.right;
         if (lensData?.points_mm) {
@@ -58,6 +68,19 @@ export const LensEditor: React.FC<LensEditorProps> = ({
             setSelectedPointIdx(null);
         }
     }, [selectedEye, initialContract]);
+
+    // Convenient getters/setters for params. 'wall' is kept synchronized across both sides.
+    const activeParams = selectedEye === 'L' ? leftParams : rightParams;
+    const updateActiveParam = (key: keyof LensParams, value: number) => {
+        if (key === 'wall') {
+            setLeftParams((prev) => ({ ...prev, wall: value }));
+            setRightParams((prev) => ({ ...prev, wall: value }));
+        } else if (selectedEye === 'L') {
+            setLeftParams((prev) => ({ ...prev, [key]: value }));
+        } else {
+            setRightParams((prev) => ({ ...prev, [key]: value }));
+        }
+    };
 
     const viewBox = useMemo(() => {
         if (!points || points.length === 0) return '-50 -50 100 100';
@@ -102,25 +125,30 @@ export const LensEditor: React.FC<LensEditorProps> = ({
 
     const handleApplyChanges = async () => {
         setIsSubmitting(true);
+
+        const currentLensPoints = points;
         const updatedContract: BuildContract = {
             ...initialContract,
             dbl_mm: dbl,
             params: {
                 ...(initialContract.params || {}),
-                clearance,
-                wall,
-                groove_depth: grooveDepth,
-                lens_edge_thickness: grooveWidth,
+                wall: activeParams.wall,
             },
-            [selectedEye === 'L' ? 'left' : 'right']: {
-                ...(selectedEye === 'L' ? initialContract.left : initialContract.right),
-                points_mm: points,
+            left: {
+                ...initialContract.left,
+                points_mm: selectedEye === 'L' ? currentLensPoints : initialContract.left.points_mm,
+                params: leftParams as unknown as Record<string, number>,
+            },
+            right: {
+                ...initialContract.right,
+                points_mm: selectedEye === 'R' ? currentLensPoints : initialContract.right.points_mm,
+                params: rightParams as unknown as Record<string, number>,
             },
         };
 
         try {
             await onUpdateContract(updatedContract);
-            onClose(); // Remains open until rebuilding promise resolves
+            onClose();
         } catch (error) {
             console.error('Failed to rebuild model:', error);
         } finally {
@@ -205,74 +233,76 @@ export const LensEditor: React.FC<LensEditorProps> = ({
                     </svg>
                 </div>
 
-                {/* Parameter Sliders */}
+                {/* Parameter Sliders - Bound to Active Eye Parameters */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#0099ff', textTransform: 'uppercase', fontWeight: 'bold' }}>
+                        Configuring: {selectedEye === 'L' ? 'Left Lens' : 'Right Lens'}
+                    </div>
+
                     <div>
                         <label style={{ display: 'block', marginBottom: '0.25rem' }}>
-                            <strong>Clearance / Buffer:</strong> {clearance.toFixed(2)} mm
+                            <strong>Clearance / Buffer:</strong> {activeParams.clearance.toFixed(2)} mm
                         </label>
                         <input
                             type="range"
                             min="0.0"
                             max="0.8"
                             step="0.05"
-                            value={clearance}
+                            value={activeParams.clearance}
                             disabled={isLoading}
-                            onChange={(e) => setClearance(parseFloat(e.target.value))}
+                            onChange={(e) => updateActiveParam('clearance', parseFloat(e.target.value))}
                             style={{ width: '100%' }}
                         />
-                        <small style={{ color: '#aaa' }}>Increase if physical lens is too big for the printed rim[cite: 4, 6].</small>
                     </div>
 
                     <div>
                         <label style={{ display: 'block', marginBottom: '0.25rem' }}>
-                            <strong>Groove Depth (Inward Overlap):</strong> {grooveDepth.toFixed(2)} mm
+                            <strong>Groove Depth (Inward Overlap):</strong> {activeParams.groove_depth.toFixed(2)} mm
                         </label>
                         <input
                             type="range"
                             min="0.2"
                             max="1.5"
                             step="0.05"
-                            value={grooveDepth}
+                            value={activeParams.groove_depth}
                             disabled={isLoading}
-                            onChange={(e) => setGrooveDepth(parseFloat(e.target.value))}
+                            onChange={(e) => updateActiveParam('groove_depth', parseFloat(e.target.value))}
                             style={{ width: '100%' }}
                         />
-                        <small style={{ color: '#aaa' }}>Controls snap retention overlap past the pocket wall[cite: 6].</small>
                     </div>
 
                     <div>
                         <label style={{ display: 'block', marginBottom: '0.25rem' }}>
-                            <strong>Groove Width (Lens Edge Height):</strong> {grooveWidth.toFixed(1)} mm
+                            <strong>Groove Width (Lens Edge Height):</strong> {activeParams.lens_edge_thickness.toFixed(1)} mm
                         </label>
                         <input
                             type="range"
                             min="1.0"
                             max="5.0"
                             step="0.1"
-                            value={grooveWidth}
+                            value={activeParams.lens_edge_thickness}
                             disabled={isLoading}
-                            onChange={(e) => setGrooveWidth(parseFloat(e.target.value))}
+                            onChange={(e) => updateActiveParam('lens_edge_thickness', parseFloat(e.target.value))}
                             style={{ width: '100%' }}
                         />
-                        <small style={{ color: '#aaa' }}>Matches the thickness/height of the lens edge.</small>
                     </div>
+
+                    <hr style={{ borderColor: '#333', margin: '0.25rem 0' }} />
 
                     <div>
                         <label style={{ display: 'block', marginBottom: '0.25rem' }}>
-                            <strong>Frame Wall Thickness:</strong> {wall.toFixed(1)} mm
+                            <strong>Frame Wall Thickness (Shared):</strong> {activeParams.wall.toFixed(1)} mm
                         </label>
                         <input
                             type="range"
                             min="1.5"
                             max="6.0"
                             step="0.5"
-                            value={wall}
+                            value={activeParams.wall}
                             disabled={isLoading}
-                            onChange={(e) => setWall(parseFloat(e.target.value))}
+                            onChange={(e) => updateActiveParam('wall', parseFloat(e.target.value))}
                             style={{ width: '100%' }}
                         />
-                        <small style={{ color: '#aaa' }}>Controls overall rim width surrounding the lens cutout[cite: 4, 6].</small>
                     </div>
 
                     <div>
@@ -289,7 +319,6 @@ export const LensEditor: React.FC<LensEditorProps> = ({
                             onChange={(e) => setDbl(parseFloat(e.target.value))}
                             style={{ width: '100%' }}
                         />
-                        <small style={{ color: '#aaa' }}>Distance between inner nasal lens edges[cite: 1, 2].</small>
                     </div>
                 </div>
 
