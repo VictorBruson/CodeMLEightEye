@@ -8,21 +8,28 @@ RIM_CLOSE_MM = 1.5
 MIN_EDGE_EXTENT_MM = 15.0
 MIN_SOLIDITY = 0.9
 REF_PPM = 8.0
-LOCAL_FRAC = 1.0
+LOCAL_FRAC = 0.4
 LOCAL_IN_MM = 0.5
 LOCAL_OUT_MM = 1.5
 REFINE_RIM = True
 REFINE_IN_MM = 6.0
-REFINE_OUT_MM = 1.0
+REFINE_OUT_MM = 1.5
 N_RAYS = 720
 REFINE_STEP_PX = 0.5
 OUTWARD_BONUS = 2.0
-JUMP_PENALTY = 1.0
+JUMP_PENALTY = 2.5
 MAX_JUMP = 3
 SMOOTH_MM = 0.6
 EDGE_BIAS_MM = 0.0
 R0_CLIP_WINDOW_MM = 20.0
 R0_CLIP_TOL_MM = 0.5
+
+REFINE_PASSES = 2
+MAX_GROWTH = 1.15
+MAX_TOTAL_OUT_MM = 2.5
+
+FINAL_MEDIAN_MM = 6.0
+FINAL_SMOOTH_MM = 1.5
 
 
 def _circ_median(x, w):
@@ -37,6 +44,22 @@ def _clip_bumps(r, window_mm, tol_mm, pixels_per_mm):
     arc_px = float(np.mean(r)) * 2 * np.pi / len(r)
     w = max(5, int(round(window_mm * pixels_per_mm / arc_px)))
     return np.minimum(r, _circ_median(r, w) + tol_mm * pixels_per_mm)
+
+
+def _circ_gauss(x, sigma):
+    k = int(max(3, round(sigma * 4))) | 1
+    t = np.arange(k) - k // 2
+    g = np.exp(-t ** 2 / (2.0 * sigma ** 2))
+    g /= g.sum()
+    ext = np.concatenate([x[-k:], x, x[:k]])
+    return np.convolve(ext, g, mode="same")[k:-k]
+
+
+def _smooth_radial(r, pixels_per_mm):
+    """Wide circular median (kills narrow bumps/notches) then a light gaussian."""
+    arc_mm = float(np.mean(r)) * 2 * np.pi / len(r) / pixels_per_mm
+    r = _circ_median(r, max(5, int(round(FINAL_MEDIAN_MM / arc_mm))))
+    return _circ_gauss(r, FINAL_SMOOTH_MM / arc_mm)
 
 
 def _lens_candidates(gradient, ignore, pixels_per_mm, threshold):
@@ -154,14 +177,24 @@ def _refine_rim_polar(gray, coarse_mask, pixels_per_mm):
     ext = np.concatenate([r[-2:], r, r[:2]])
     r = np.median(np.stack([ext[k:k + N_RAYS] for k in range(5)]), axis=0)
 
+    r = _smooth_radial(r, pixels_per_mm)
+
     pts = np.column_stack([cx + r * np.cos(angles), cy + r * np.sin(angles)])
     refined = np.zeros_like(coarse_mask)
     cv2.fillPoly(refined, [np.round(pts).astype(np.int32)], 255)
 
     ratio = (refined > 0).sum() / max((coarse_mask > 0).sum(), 1)
-    if not (0.6 < ratio <= 1.02):
+    if not (0.6 < ratio <= MAX_GROWTH):
         return coarse_mask
     return refined
+
+
+def _refine_rim_multipass(gray, mask, pixels_per_mm):
+    r = int(round(MAX_TOTAL_OUT_MM * pixels_per_mm))
+    limit = cv2.dilate(mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1)))
+    for _ in range(REFINE_PASSES):
+        mask = cv2.bitwise_and(_refine_rim_polar(gray, mask, pixels_per_mm), limit)
+    return mask
 
 
 def segment_lens(image, pixels_per_mm, card_quad=None):
@@ -200,7 +233,7 @@ def segment_lens(image, pixels_per_mm, card_quad=None):
     cv2.drawContours(lens_mask, [lens_contour], -1, 255, thickness=cv2.FILLED)
 
     if REFINE_RIM:
-        lens_mask = _refine_rim_polar(gray, lens_mask, pixels_per_mm)
+        lens_mask = _refine_rim_multipass(gray, lens_mask, pixels_per_mm)
 
     sigma = SMOOTH_MM * pixels_per_mm
     smooth = cv2.GaussianBlur(lens_mask, (0, 0), sigma)
