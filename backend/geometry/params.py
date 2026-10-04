@@ -34,7 +34,17 @@ class FrameParams:
     def from_dict(cls, overrides=None):
         """Build params from the contract's `params` object.
         Returns (params, warnings). Unknown keys are ignored with a warning."""
-        overrides = overrides or {}
+        if overrides is None:
+            overrides = {}
+        if not isinstance(overrides, dict):
+            return cls(), ["params ignored: expected an object"]
         known = {f.name for f in fields(cls)}
-        warnings = [f"unknown param ignored: {k}" for k in overrides if k not in known]
-        return cls(**{k: v for k, v in overrides.items() if k in known}), warnings
+        warnings, clean = [], {}
+        for k, v in overrides.items():
+            if k not in known:
+                warnings.append(f"unknown param ignored: {k}")
+            elif isinstance(v, bool) or not isinstance(v, (int, float)) or v != v or abs(v) == float("inf"):
+                warnings.append(f"param ignored (not a number): {k}")
+            else:
+                clean[k] = v
+        return cls(**clean), warnings

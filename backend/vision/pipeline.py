@@ -85,9 +85,20 @@ if __name__ == "__main__":
     import argparse
     import json
 
-    ap = argparse.ArgumentParser(description="Measure lenses and write the build_frame() input JSON.")
-    ap.add_argument("left", nargs="?", default="test_image2.jpg",
-                    help="photo of the lens for the wearer's LEFT eye")
+    from pathlib import Path
+
+    ap = argparse.ArgumentParser(
+        description="Measure lenses and write the build_frame() input JSON."
+    )
+
+    default_image = Path(__file__).parent / "test_image2.jpg"
+
+    ap.add_argument(
+        "left",
+        nargs="?",
+        default=str(default_image),
+        help="photo of the lens for the wearer's LEFT eye"
+    )
     ap.add_argument("right", nargs="?", default=None,
                     help="photo of the lens for the RIGHT eye (default: same photo as left)")
     ap.add_argument("-o", "--out", default="frame_input.json")
