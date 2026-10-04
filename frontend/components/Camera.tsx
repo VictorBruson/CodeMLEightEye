@@ -14,9 +14,13 @@ export function Camera({ eye, imageUrl, autoStart = false, onCapture }: CameraPr
   const [cameraOpen, setCameraOpen] = useState(false);
   const [error, setError] = useState<string>();
 
-  useEffect(() => () => {
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-  }, []);
+  useEffect(() => {
+    if (videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      // Explicitly call play() for mobile Safari compatibility
+      videoRef.current.play().catch((err) => console.error("Video play error:", err));
+    }
+  }, [cameraOpen]);
 
   const startCamera = async () => {
     setError(undefined);
@@ -30,8 +34,9 @@ export function Camera({ eye, imageUrl, autoStart = false, onCapture }: CameraPr
         audio: false,
       });
       setCameraOpen(true);
-    } catch {
-      setError('Camera access was declined. You can upload a photo instead.');
+    } catch (err: any) {
+      console.error("Camera error:", err);
+      setError(`Camera error: ${err.name || err.message || 'Access declined'}`);
     }
   };
 
