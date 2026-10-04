@@ -4,7 +4,7 @@ import numpy as np
 from calibration import calibrate
 from segmentation import segment_lens
 from outline import robust_boxing
-from export import export_lens_json
+from export import build_contract, write_contract_json, DEFAULT_DBL_MM
 from contours import (
     create_contour_overlay,
     find_lens_contours,
@@ -57,15 +57,59 @@ def measure_multi(image_paths):
     }
 
 
+def export_contract(left_image, right_image, out_path="frame_input.json",
+                    dbl_mm=DEFAULT_DBL_MM, params=None,
+                    left_flipped=False, right_flipped=False, debug=True):
+    results = {}
+    for side, path in (("left", left_image), ("right", right_image)):
+        if path not in results:
+            results[path] = process_image(path)
+        result = results[path]
+        print(f"{side}: A={result['measurements']['width_mm']:.2f} mm, "
+              f"B={result['measurements']['height_mm']:.2f} mm  ({path})")
+        if debug:
+            # Always look at these: they show what the code actually "saw".
+            cv2.imwrite(f"{side}_overlay.jpg", result["overlay_image"])
+
+    data = build_contract(results[left_image], results[right_image], dbl_mm=dbl_mm,
+                          params=params, left_flipped=left_flipped,
+                          right_flipped=right_flipped)
+    write_contract_json(data, out_path)
+    print(f"Wrote {out_path}")
+    return data
+
+
 if __name__ == "__main__":
-    result = process_image("test_image.jpg")
+    import argparse
+    import json
 
-    print("\nMeasurements:\n")
-    for name, value in result["measurements"].items():
-        print(f"{name}: {value:.2f} mm")
+    from pathlib import Path
 
-    cv2.imwrite("debug_warped.jpg", result["warped_image"])
-    cv2.imwrite("debug_overlay.jpg", result["overlay_image"])
-    cv2.imwrite("debug_mask.png", result["lens_mask"])
+    ap = argparse.ArgumentParser(
+        description="Measure lenses and write the build_frame() input JSON."
+    )
 
-    export_lens_json(result, "lens_outline.json")
+    default_image = Path(__file__).parent / "test_image.jpg"
+
+    ap.add_argument(
+        "left",
+        nargs="?",
+        default=str(default_image),
+        help="photo of the lens for the wearer's LEFT eye"
+    )
+    ap.add_argument("right", nargs="?", default=str(default_image),
+                    help="photo of the lens for the RIGHT eye (default: same photo as left)")
+    ap.add_argument("-o", "--out", default="frame_input.json")
+    ap.add_argument("--dbl", type=float, default=DEFAULT_DBL_MM, help="bridge width in mm (8-30)")
+    ap.add_argument("--params", default="{}",
+                    help='frame settings overrides as JSON, e.g. \'{"clearance": 0.2, "wall": 3.0}\'')
+    ap.add_argument("--left-flipped", action="store_true", help="left lens was photographed back side up")
+    ap.add_argument("--right-flipped", action="store_true", help="right lens was photographed back side up")
+    args = ap.parse_args()
+
+    right = args.right or args.left
+    if right == args.left:
+        print("Note: the same photo is used for both lenses.")
+    export_contract(args.left, right, args.out, dbl_mm=args.dbl,
+                    params=json.loads(args.params),
+                    left_flipped=args.left_flipped, right_flipped=args.right_flipped)

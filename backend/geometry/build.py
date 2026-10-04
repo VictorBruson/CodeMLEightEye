@@ -55,7 +55,10 @@ def build_from_contract(data):
     params, warnings = FrameParams.from_dict(data.get("params"))
     left = lens_from_dict(data.get("left"), params, name="left")
     right = lens_from_dict(data.get("right"), params, name="right")
-    dbl = float(data.get("dbl_mm", 18))
+    try:
+        dbl = float(data.get("dbl_mm", 18))
+    except (TypeError, ValueError):
+        raise GeometryError("bad_dbl", "Bridge width must be a number between 8 and 30 mm.")
 
     mesh, report, _ = build_frame(left, right, dbl, params)
     report["warnings"] = warnings + report["warnings"]
