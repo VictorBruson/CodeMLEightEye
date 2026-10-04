@@ -15,11 +15,27 @@ export function Camera({ eye, imageUrl, autoStart = false, onCapture }: CameraPr
   const [error, setError] = useState<string>();
 
   useEffect(() => {
-    if (videoRef.current && streamRef.current) {
-      videoRef.current.srcObject = streamRef.current;
-      // Explicitly call play() for mobile Safari compatibility
-      videoRef.current.play().catch((err) => console.error("Video play error:", err));
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (!video || !stream) return;
+
+    video.srcObject = stream;
+    const playVideo = () => {
+      video.play().catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        console.error('Video play error:', err);
+      });
+    };
+
+    if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+      playVideo();
+    } else {
+      video.addEventListener('loadedmetadata', playVideo, { once: true });
     }
+
+    return () => {
+      video.removeEventListener('loadedmetadata', playVideo);
+    };
   }, [cameraOpen]);
 
   const startCamera = async () => {
@@ -41,8 +57,10 @@ export function Camera({ eye, imageUrl, autoStart = false, onCapture }: CameraPr
   };
 
   useEffect(() => {
-    if (videoRef.current && streamRef.current) videoRef.current.srcObject = streamRef.current;
-  }, [cameraOpen]);
+    return () => {
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
 
   useEffect(() => {
     if (autoStart && !imageUrl && !cameraOpen) void startCamera();
