@@ -3,11 +3,18 @@ import re
 
 import numpy as np
 
-from .outline import fourier_smooth, DEFAULT_HARMONICS
+try:
+    from .outline import fourier_smooth, DEFAULT_HARMONICS
+except ImportError:
+    import os
+    import sys
+
+    sys.path.insert(0, os.path.dirname(__file__))
+    from outline import fourier_smooth, DEFAULT_HARMONICS
 
 MIN_POINTS = 8
-AB_RANGE_MM = (20.0, 80.0)       # allowed width / height of each lens
-DBL_RANGE_MM = (8.0, 30.0)       # allowed bridge width
+AB_RANGE_MM = (20.0, 80.0)
+DBL_RANGE_MM = (8.0, 30.0)
 DEFAULT_DBL_MM = 18
 PARAM_KEYS = ("clearance", "wall", "thickness", "groove_depth",
               "bridge_height", "bridge_thickness")

@@ -1,17 +1,33 @@
 import cv2
 import numpy as np
 
-from .calibration import calibrate
-from .segmentation import segment_lens
-from .outline import robust_boxing
-from .export import build_contract, write_contract_json, DEFAULT_DBL_MM
-from .contours import (
-    create_contour_overlay,
-    find_lens_contours,
-    contour_to_mm,
-    calculate_measurements,
-    create_contour_overlay
-)
+try:
+    from .calibration import calibrate
+    from .segmentation import segment_lens
+    from .outline import robust_boxing
+    from .export import build_contract, write_contract_json, DEFAULT_DBL_MM
+    from .contours import (
+        create_contour_overlay,
+        find_lens_contours,
+        contour_to_mm,
+        calculate_measurements,
+    )
+except ImportError:
+    import os
+    import sys
+
+    sys.path.insert(0, os.path.dirname(__file__))
+
+    from calibration import calibrate
+    from segmentation import segment_lens
+    from outline import robust_boxing
+    from export import build_contract, write_contract_json, DEFAULT_DBL_MM
+    from contours import (
+        create_contour_overlay,
+        find_lens_contours,
+        contour_to_mm,
+        calculate_measurements,
+    )
 
 def process_image(image_path):
     image = cv2.imread(image_path)
@@ -90,6 +106,7 @@ if __name__ == "__main__":
     )
 
     default_image = Path(__file__).parent / "test_image.jpg"
+    default_image2 = Path(__file__).parent / "test_image2.jpg"
 
     ap.add_argument(
         "left",
@@ -97,7 +114,7 @@ if __name__ == "__main__":
         default=str(default_image),
         help="photo of the lens for the wearer's LEFT eye"
     )
-    ap.add_argument("right", nargs="?", default=str(default_image),
+    ap.add_argument("right", nargs="?", default=str(default_image2),
                     help="photo of the lens for the RIGHT eye (default: same photo as left)")
     ap.add_argument("-o", "--out", default="frame_input.json")
     ap.add_argument("--dbl", type=float, default=DEFAULT_DBL_MM, help="bridge width in mm (8-30)")
