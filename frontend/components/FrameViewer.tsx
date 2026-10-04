@@ -3,9 +3,8 @@ import { Canvas, useLoader, useFrame } from '@react-three/fiber';
 import { Bounds, OrbitControls, Center } from '@react-three/drei';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import type { FrameApiResponse } from '../src/api';
-import type { Group } from 'three';
+import type { BufferGeometry, Group } from 'three';
 import fallbackStlUrl from '../ressources/steve_block.stl?url';
-
 
 export interface FrameViewerProps {
     ready: boolean;
@@ -46,9 +45,8 @@ class ViewerErrorBoundary extends Component<ViewerErrorBoundaryProps, ViewerErro
     }
 }
 
-// Sub-component to handle the slower drop & spin animation
-function AnimatedSTLModel({ url }: { url: string }) {
-    const geometry = useLoader(STLLoader, url);
+// Sub-component to render and animate any passed BufferGeometry directly
+function AnimatedSTLModel({ geometry }: { geometry: BufferGeometry }) {
     const groupRef = useRef<Group>(null);
     const animProgress = useRef(0);
 
@@ -79,14 +77,20 @@ function AnimatedSTLModel({ url }: { url: string }) {
     );
 }
 
+// Sub-component to load a remote STL fallback URL via network fetch
+function RemoteSTLModel({ url }: { url: string }) {
+    const geometry = useLoader(STLLoader, url);
+    return <AnimatedSTLModel geometry={geometry} />;
+}
+
 export function FrameViewer({
                                 ready,
                                 frameData,
                                 stlUrl = fallbackStlUrl,
                             }: FrameViewerProps) {
-    // Convert base64 STL to a Blob URL if stl_b64 is present
-    const activeStlUrl = useMemo(() => {
-        if (!frameData?.stl_b64) return stlUrl;
+    // Synchronously parse base64 STL into BufferGeometry without blob URLs or fetch()
+    const parsedGeometry = useMemo(() => {
+        if (!frameData?.stl_b64) return null;
 
         try {
             const binaryString = atob(frameData.stl_b64);
@@ -95,28 +99,41 @@ export function FrameViewer({
                 bytes[i] = binaryString.charCodeAt(i);
             }
 
-            const blob = new Blob([bytes.buffer], { type: 'model/stl' });
-            return URL.createObjectURL(blob);
+            const loader = new STLLoader();
+            return loader.parse(bytes.buffer);
         } catch (error) {
-            console.error('Failed to parse base64 STL string:', error);
-            return stlUrl;
+            console.error('Failed to parse base64 STL string directly:', error);
+            return null;
         }
-    }, [frameData?.stl_b64, stlUrl]);
-
-    // Clean up object URL on unmount or URL change
-    React.useEffect(() => {
-        return () => {
-            if (activeStlUrl && activeStlUrl.startsWith('blob:')) {
-                URL.revokeObjectURL(activeStlUrl);
-            }
-        };
-    }, [activeStlUrl]);
+    }, [frameData?.stl_b64]);
 
     const downloadStl = () => {
+        let downloadUrl = stlUrl;
+        let createdBlobUrl = false;
+
+        if (frameData?.stl_b64) {
+            try {
+                const binaryString = atob(frameData.stl_b64);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                const blob = new Blob([bytes.buffer], { type: 'model/stl' });
+                downloadUrl = URL.createObjectURL(blob);
+                createdBlobUrl = true;
+            } catch (error) {
+                console.error('Failed to create Blob for STL download:', error);
+            }
+        }
+
         const link = document.createElement('a');
-        link.href = activeStlUrl;
+        link.href = downloadUrl;
         link.download = 'custom-frame.stl';
         link.click();
+
+        if (createdBlobUrl) {
+            URL.revokeObjectURL(downloadUrl);
+        }
     };
 
     const downloadSvg = () => {
@@ -170,7 +187,14 @@ export function FrameViewer({
                             <Suspense fallback={null}>
                                 <Bounds fit clip observe margin={1.25}>
                                     <Center>
-                                        <AnimatedSTLModel key={activeStlUrl} url={activeStlUrl} />
+                                        {parsedGeometry ? (
+                                            <AnimatedSTLModel
+                                                key={frameData?.stl_b64}
+                                                geometry={parsedGeometry}
+                                            />
+                                        ) : (
+                                            <RemoteSTLModel key={stlUrl} url={stlUrl} />
+                                        )}
                                     </Center>
                                 </Bounds>
                             </Suspense>
