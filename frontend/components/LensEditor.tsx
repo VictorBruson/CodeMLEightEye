@@ -19,7 +19,7 @@ interface LensEditorProps {
     isOpen: boolean;
     onClose: () => void;
     initialContract: BuildContract;
-    onUpdateContract: (updatedContract: BuildContract) => void;
+    onUpdateContract: (updatedContract: BuildContract) => Promise<void> | void;
     isGenerating?: boolean;
 }
 
@@ -36,11 +36,18 @@ export const LensEditor: React.FC<LensEditorProps> = ({
     const [wall, setWall] = useState<number>(
         (initialContract.params?.wall as number) ?? 3.0
     );
+    const [grooveDepth, setGrooveDepth] = useState<number>(
+        (initialContract.params?.groove_depth as number) ?? 0.5
+    );
+    const [grooveWidth, setGrooveWidth] = useState<number>(
+        (initialContract.params?.lens_edge_thickness as number) ?? 2.0
+    );
     const [dbl, setDbl] = useState<number>(initialContract.dbl_mm ?? 18);
 
     const [selectedEye, setSelectedEye] = useState<'L' | 'R'>('L');
     const [points, setPoints] = useState<[number, number][]>([]);
     const [selectedPointIdx, setSelectedPointIdx] = useState<number | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const svgRef = useRef<SVGSVGElement>(null);
 
@@ -93,7 +100,8 @@ export const LensEditor: React.FC<LensEditorProps> = ({
         });
     };
 
-    const handleApplyChanges = () => {
+    const handleApplyChanges = async () => {
+        setIsSubmitting(true);
         const updatedContract: BuildContract = {
             ...initialContract,
             dbl_mm: dbl,
@@ -101,17 +109,28 @@ export const LensEditor: React.FC<LensEditorProps> = ({
                 ...(initialContract.params || {}),
                 clearance,
                 wall,
+                groove_depth: grooveDepth,
+                lens_edge_thickness: grooveWidth,
             },
             [selectedEye === 'L' ? 'left' : 'right']: {
                 ...(selectedEye === 'L' ? initialContract.left : initialContract.right),
                 points_mm: points,
             },
         };
-        onUpdateContract(updatedContract);
-        onClose();
+
+        try {
+            await onUpdateContract(updatedContract);
+            onClose(); // Remains open until rebuilding promise resolves
+        } catch (error) {
+            console.error('Failed to rebuild model:', error);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     if (!isOpen) return null;
+
+    const isLoading = isGenerating || isSubmitting;
 
     return (
         <div className="modal-backdrop" role="presentation">
@@ -125,6 +144,7 @@ export const LensEditor: React.FC<LensEditorProps> = ({
                     className="modal-close"
                     type="button"
                     onClick={onClose}
+                    disabled={isLoading}
                     aria-label="Close editor"
                 >
                     ×
@@ -137,6 +157,7 @@ export const LensEditor: React.FC<LensEditorProps> = ({
                             type="button"
                             className={`button ${selectedEye === 'L' ? 'button--primary' : 'button--secondary'}`}
                             onClick={() => setSelectedEye('L')}
+                            disabled={isLoading}
                             style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem' }}
                         >
                             Left Lens
@@ -145,6 +166,7 @@ export const LensEditor: React.FC<LensEditorProps> = ({
                             type="button"
                             className={`button ${selectedEye === 'R' ? 'button--primary' : 'button--secondary'}`}
                             onClick={() => setSelectedEye('R')}
+                            disabled={isLoading}
                             style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem' }}
                         >
                             Right Lens
@@ -174,6 +196,7 @@ export const LensEditor: React.FC<LensEditorProps> = ({
                                 strokeWidth="0.5"
                                 style={{ cursor: 'pointer' }}
                                 onMouseDown={(e) => {
+                                    if (isLoading) return;
                                     e.stopPropagation();
                                     setSelectedPointIdx(idx);
                                 }}
@@ -194,10 +217,45 @@ export const LensEditor: React.FC<LensEditorProps> = ({
                             max="0.8"
                             step="0.05"
                             value={clearance}
+                            disabled={isLoading}
                             onChange={(e) => setClearance(parseFloat(e.target.value))}
                             style={{ width: '100%' }}
                         />
                         <small style={{ color: '#aaa' }}>Increase if physical lens is too big for the printed rim[cite: 4, 6].</small>
+                    </div>
+
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '0.25rem' }}>
+                            <strong>Groove Depth (Inward Overlap):</strong> {grooveDepth.toFixed(2)} mm
+                        </label>
+                        <input
+                            type="range"
+                            min="0.2"
+                            max="1.5"
+                            step="0.05"
+                            value={grooveDepth}
+                            disabled={isLoading}
+                            onChange={(e) => setGrooveDepth(parseFloat(e.target.value))}
+                            style={{ width: '100%' }}
+                        />
+                        <small style={{ color: '#aaa' }}>Controls snap retention overlap past the pocket wall[cite: 6].</small>
+                    </div>
+
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '0.25rem' }}>
+                            <strong>Groove Width (Lens Edge Height):</strong> {grooveWidth.toFixed(1)} mm
+                        </label>
+                        <input
+                            type="range"
+                            min="1.0"
+                            max="5.0"
+                            step="0.1"
+                            value={grooveWidth}
+                            disabled={isLoading}
+                            onChange={(e) => setGrooveWidth(parseFloat(e.target.value))}
+                            style={{ width: '100%' }}
+                        />
+                        <small style={{ color: '#aaa' }}>Matches the thickness/height of the lens edge.</small>
                     </div>
 
                     <div>
@@ -210,6 +268,7 @@ export const LensEditor: React.FC<LensEditorProps> = ({
                             max="6.0"
                             step="0.5"
                             value={wall}
+                            disabled={isLoading}
                             onChange={(e) => setWall(parseFloat(e.target.value))}
                             style={{ width: '100%' }}
                         />
@@ -226,6 +285,7 @@ export const LensEditor: React.FC<LensEditorProps> = ({
                             max="26.0"
                             step="0.5"
                             value={dbl}
+                            disabled={isLoading}
                             onChange={(e) => setDbl(parseFloat(e.target.value))}
                             style={{ width: '100%' }}
                         />
@@ -236,10 +296,10 @@ export const LensEditor: React.FC<LensEditorProps> = ({
                 <button
                     type="button"
                     className="button button--primary button--full"
-                    onClick={handleApplyChanges}
-                    disabled={isGenerating}
+                    onClick={() => void handleApplyChanges()}
+                    disabled={isLoading}
                 >
-                    {isGenerating ? 'Rebuilding Model…' : 'Apply & Rebuild 3D Frame'}
+                    {isLoading ? 'Rebuilding Model…' : 'Apply & Rebuild 3D Frame'}
                 </button>
             </section>
         </div>

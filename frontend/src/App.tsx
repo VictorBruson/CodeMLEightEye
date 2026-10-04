@@ -176,9 +176,9 @@ function App() {
                             onClose={() => setIsEditorOpen(false)}
                             initialContract={activeContract}
                             isGenerating={isGeneratingFrame}
-                            onUpdateContract={(updatedContract) => {
+                            onUpdateContract={async (updatedContract) => {
                                 setActiveContract(updatedContract);
-                                void generateMeasuredFrame(updatedContract);
+                                await generateMeasuredFrame(updatedContract);
                             }}
                         />
                     )}

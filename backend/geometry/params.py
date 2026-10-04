@@ -14,8 +14,8 @@ class FrameParams:
     clearance: float = 0.2
     wall: float = 3.0
     thickness: float = 4.5
-    groove_depth: float = 0.5      # how far the entry lip reaches in past the pocket wall;
-                                   # snap overlap on the lens = groove_depth - clearance
+    groove_depth: float = 0.5
+    lens_edge_thickness: float = 2.0  # Pocket/groove height/width along Z[cite: 6]
 
     # --- lens retention: the hole is a stack of layers, built up from the bed (z = 0) ---
     #   ledge (the lens rests on it) -> pocket (holds the lens edge)
