@@ -1,15 +1,49 @@
-import React, { Suspense, useMemo, useRef } from 'react';
+import React, { Component, Suspense, useMemo, useRef } from 'react';
 import { Canvas, useLoader, useFrame } from '@react-three/fiber';
-import { OrbitControls, Center } from '@react-three/drei';
+import { Bounds, OrbitControls, Center } from '@react-three/drei';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import type { FrameApiResponse } from '../src/api';
 import type { Group } from 'three';
+import fallbackStlUrl from '../ressources/steve_block.stl?url';
 
 
 export interface FrameViewerProps {
     ready: boolean;
     frameData?: FrameApiResponse | null;
     stlUrl?: string;
+}
+
+interface ViewerErrorBoundaryProps {
+    children: React.ReactNode;
+    fallback: React.ReactNode;
+}
+
+interface ViewerErrorBoundaryState {
+    error?: Error;
+}
+
+class ViewerErrorBoundary extends Component<ViewerErrorBoundaryProps, ViewerErrorBoundaryState> {
+    state: ViewerErrorBoundaryState = {};
+
+    static getDerivedStateFromError(error: Error): ViewerErrorBoundaryState {
+        return { error };
+    }
+
+    componentDidCatch(error: Error) {
+        console.error('3D frame viewer failed:', error);
+    }
+
+    render() {
+        if (this.state.error) {
+            return (
+                <div className="frame-viewer-error" role="alert">
+                    {this.props.fallback}
+                    <p>{this.state.error.message || 'The generated frame could not be displayed.'}</p>
+                </div>
+            );
+        }
+        return this.props.children;
+    }
 }
 
 // Sub-component to handle the slower drop & spin animation
@@ -48,7 +82,7 @@ function AnimatedSTLModel({ url }: { url: string }) {
 export function FrameViewer({
                                 ready,
                                 frameData,
-                                stlUrl = 'ressources/steve_block.stl',
+                                stlUrl = fallbackStlUrl,
                             }: FrameViewerProps) {
     // Convert base64 STL to a Blob URL if stl_b64 is present
     const activeStlUrl = useMemo(() => {
@@ -121,16 +155,28 @@ export function FrameViewer({
                 style={{ height: '320px', width: '100%', position: 'relative' }}
             >
                 {ready ? (
-                    <Canvas camera={{ position: [0, 0, 150], fov: 45 }}>
-                        <ambientLight intensity={0.7} />
-                        <directionalLight position={[100, 100, 100]} intensity={1.2} />
-                        <Suspense fallback={null}>
-                            <Center>
-                                <AnimatedSTLModel key={activeStlUrl} url={activeStlUrl} />
-                            </Center>
-                        </Suspense>
-                        <OrbitControls enableZoom makeDefault />
-                    </Canvas>
+                    <ViewerErrorBoundary
+                        fallback={
+                            <div className="frame-viewer-error" role="alert">
+                                <h3>Unable to load the 3D preview</h3>
+                                <p>The generated frame could not be displayed.</p>
+                                <p>You can still download the generated files below.</p>
+                            </div>
+                        }
+                    >
+                        <Canvas camera={{ position: [0, 0, 150], fov: 45 }}>
+                            <ambientLight intensity={0.7} />
+                            <directionalLight position={[100, 100, 100]} intensity={1.2} />
+                            <Suspense fallback={null}>
+                                <Bounds fit clip observe margin={1.25}>
+                                    <Center>
+                                        <AnimatedSTLModel key={activeStlUrl} url={activeStlUrl} />
+                                    </Center>
+                                </Bounds>
+                            </Suspense>
+                            <OrbitControls enableZoom makeDefault />
+                        </Canvas>
+                    </ViewerErrorBoundary>
                 ) : (
                     <p>Add both photos to generate the preview.</p>
                 )}

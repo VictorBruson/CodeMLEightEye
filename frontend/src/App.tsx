@@ -25,7 +25,6 @@ function App() {
   const [frameData, setFrameData] = useState<FrameApiResponse>();
   const [frameError, setFrameError] = useState<string>();
   const [isGeneratingFrame, setIsGeneratingFrame] = useState(false);
-  const [runtimeError, setRuntimeError] = useState<string>();
 
   // Log every state transition to the browser console
   useEffect(() => {
@@ -158,12 +157,7 @@ function App() {
 
         {screen === 'design' && (
             <section className="mobile-screen design-screen">
-              {runtimeError ? (
-                  <div style={{ color: 'red', padding: '1rem' }}>
-                    <h3>Error Loading Design:</h3>
-                    <p>{runtimeError}</p>
-                  </div>
-              ) : frameData ? (
+              {frameData ? (
                   <FrameViewer ready={Boolean(left && right)} frameData={frameData} />
               ) : (
                   <div style={{ padding: '1rem', textAlign: 'center' }}>
