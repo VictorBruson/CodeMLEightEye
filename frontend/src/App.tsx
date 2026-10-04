@@ -3,11 +3,14 @@ import { Camera } from '../components/Camera';
 import { FrameCustomizer, type FrameOptions } from '../components/FrameCustomizer';
 import { FrameViewer } from '../components/FrameViewer';
 import { MeasurementOverlay } from '../components/MeasurementOverlay';
+import { measurePair } from './api';
 import './App.css';
 
 interface LensPhoto {
+  blob: Blob;
   url: string;
   measurements: Record<string, number>;
+  overlay?: string;
 }
 
 type Screen = 'home' | 'left' | 'right' | 'results' | 'design';
@@ -18,12 +21,34 @@ function App() {
   const [right, setRight] = useState<LensPhoto>();
   const [options, setOptions] = useState<FrameOptions>({ bridge: 18, rim: 0.2, eye: 'left' });
   const [showReference, setShowReference] = useState(false);
+  const [isMeasuring, setIsMeasuring] = useState(false);
+  const [measurementError, setMeasurementError] = useState<string>();
 
-  const addPhoto = (side: 'left' | 'right', url: string) => {
-    const measurements = side === 'left'
-      ? { width: 51, height: 37, perimeter: 139 }
-      : { width: 50, height: 36, perimeter: 137 };
-    (side === 'left' ? setLeft : setRight)({ url, measurements });
+  const addPhoto = (side: 'left' | 'right', blob: Blob, url: string) => {
+    (side === 'left' ? setLeft : setRight)({ blob, url, measurements: {} });
+    setMeasurementError(undefined);
+  };
+
+  const measureCapturedPair = async () => {
+    if (!left || !right) return;
+    setIsMeasuring(true);
+    setMeasurementError(undefined);
+    try {
+      const result = await measurePair(left.blob, right.blob);
+      setLeft({ ...left, overlay: result.overlays.left, measurements: {
+        width: result.measurements.left.A_mm,
+        height: result.measurements.left.B_mm,
+      }});
+      setRight({ ...right, overlay: result.overlays.right, measurements: {
+        width: result.measurements.right.A_mm,
+        height: result.measurements.right.B_mm,
+      }});
+      setScreen('results');
+    } catch (error) {
+      setMeasurementError(error instanceof Error ? error.message : 'The lens images could not be measured.');
+    } finally {
+      setIsMeasuring(false);
+    }
   };
 
   const currentStep = screen === 'left' ? 1 : screen === 'right' ? 2 : screen === 'results' ? 3 : 0;
@@ -68,15 +93,16 @@ function App() {
 
       {screen === 'left' && (
         <section className="mobile-screen capture-screen">
-          <Camera eye="left" imageUrl={left?.url} autoStart={!showReference} onCapture={(_, url) => addPhoto('left', url)} />
+          <Camera eye="left" imageUrl={left?.url} autoStart={!showReference} onCapture={(blob, url) => addPhoto('left', blob, url)} />
           {left && <button className="button button--primary next-button" type="button" onClick={() => setScreen('right')}>Next: right lens <span>→</span></button>}
         </section>
       )}
 
       {screen === 'right' && (
         <section className="mobile-screen capture-screen">
-          <Camera eye="right" imageUrl={right?.url} onCapture={(_, url) => addPhoto('right', url)} />
-          {right && <button className="button button--primary next-button" type="button" onClick={() => setScreen('results')}>See measurements <span>→</span></button>}
+          <Camera eye="right" imageUrl={right?.url} onCapture={(blob, url) => addPhoto('right', blob, url)} />
+          {measurementError && <p className="form-error" role="alert">{measurementError}</p>}
+          {right && <button className="button button--primary next-button" type="button" onClick={() => void measureCapturedPair()} disabled={isMeasuring}>{isMeasuring ? 'Measuring both lenses…' : 'See measurements'} <span>→</span></button>}
         </section>
       )}
 
@@ -88,8 +114,8 @@ function App() {
             <p>These measurements will guide your custom frame.</p>
           </div>
           <div className="mobile-results">
-            <div className="result-card"><h3>Left lens</h3><MeasurementOverlay imageUrl={left?.url} measurements={left?.measurements} /></div>
-            <div className="result-card"><h3>Right lens</h3><MeasurementOverlay imageUrl={right?.url} measurements={right?.measurements} /></div>
+            <div className="result-card"><h3>Left lens</h3><MeasurementOverlay imageUrl={left?.overlay ?? left?.url} measurements={left?.measurements} /></div>
+            <div className="result-card"><h3>Right lens</h3><MeasurementOverlay imageUrl={right?.overlay ?? right?.url} measurements={right?.measurements} /></div>
           </div>
           <button className="button button--primary next-button" type="button" onClick={() => setScreen('design')}>Design my frame <span>→</span></button>
         </section>

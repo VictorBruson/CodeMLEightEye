@@ -7,5 +7,8 @@ export default defineConfig({
   server: {
     // Allows any localtunnel or cloudflared host to connect
     allowedHosts: true,
+    proxy: {
+      '/api': 'http://localhost:8000',
+    },
   },
 })

@@ -1,7 +1,7 @@
 import React, { Suspense, useMemo } from 'react';
 import { Canvas, useLoader } from '@react-three/fiber';
 import { OrbitControls, Center } from '@react-three/drei';
-import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
+import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import type { FrameOptions } from './FrameCustomizer';
 
 export interface FrameApiResponse {
@@ -33,7 +33,7 @@ function STLModel({ url }: { url: string }) {
 }
 
 export function FrameViewer({
-                                options,
+                                options: _options,
                                 ready,
                                 frameData,
                                 stlUrl = 'ressources/steve_block.stl',
