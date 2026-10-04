@@ -68,11 +68,6 @@ function App() {
 
       {screen === 'left' && (
         <section className="mobile-screen capture-screen">
-          <div className="screen-copy">
-            <span className="eyebrow">Step 1 of 3</span>
-            <h1>Capture the<br /><em>left lens.</em></h1>
-            <p>Place the lens and card in the frame, then take a clear photo from above.</p>
-          </div>
           <Camera eye="left" imageUrl={left?.url} autoStart={!showReference} onCapture={(_, url) => addPhoto('left', url)} />
           {left && <button className="button button--primary next-button" type="button" onClick={() => setScreen('right')}>Next: right lens <span>→</span></button>}
         </section>
@@ -80,11 +75,6 @@ function App() {
 
       {screen === 'right' && (
         <section className="mobile-screen capture-screen">
-          <div className="screen-copy">
-            <span className="eyebrow">Step 2 of 3</span>
-            <h1>Now capture the<br /><em>right lens.</em></h1>
-            <p>Keep the same setup and make sure the entire lens is visible.</p>
-          </div>
           <Camera eye="right" imageUrl={right?.url} onCapture={(_, url) => addPhoto('right', url)} />
           {right && <button className="button button--primary next-button" type="button" onClick={() => setScreen('results')}>See measurements <span>→</span></button>}
         </section>
