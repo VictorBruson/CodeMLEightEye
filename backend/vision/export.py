@@ -3,7 +3,7 @@ import re
 
 import numpy as np
 
-from outline import fourier_smooth, DEFAULT_HARMONICS
+from .outline import fourier_smooth, DEFAULT_HARMONICS
 
 MIN_POINTS = 8
 AB_RANGE_MM = (20.0, 80.0)       # allowed width / height of each lens

@@ -1,8 +1,8 @@
-import React, { Suspense, useMemo } from 'react';
-import { Canvas, useLoader } from '@react-three/fiber';
+import React, { Suspense, useMemo, useRef } from 'react';
+import { Canvas, useLoader, useFrame } from '@react-three/fiber';
 import { OrbitControls, Center } from '@react-three/drei';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
-import type { FrameOptions } from './FrameCustomizer';
+import type { Group } from 'three';
 
 export interface FrameApiResponse {
     version: number;
@@ -16,24 +16,45 @@ export interface FrameApiResponse {
 }
 
 export interface FrameViewerProps {
-    options: FrameOptions;
     ready: boolean;
     frameData?: FrameApiResponse | null;
     stlUrl?: string;
 }
 
-function STLModel({ url }: { url: string }) {
+// Sub-component to handle the slower drop & spin animation
+function AnimatedSTLModel({ url }: { url: string }) {
     const geometry = useLoader(STLLoader, url);
+    const groupRef = useRef<Group>(null);
+    const animProgress = useRef(0);
+
+    useFrame((_, delta) => {
+        if (animProgress.current < 1) {
+            // Slower animation speed (takes ~3 seconds to complete)
+            animProgress.current = Math.min(animProgress.current + delta * 0.35, 1);
+            const p = animProgress.current;
+
+            // Smooth ease-out cubic curve
+            const easeOut = 1 - Math.pow(1 - p, 3);
+
+            if (groupRef.current) {
+                // Gentle drop from y = 60 down to 0
+                groupRef.current.position.y = (1 - easeOut) * 60;
+                // Graceful 360-degree spin during drop
+                groupRef.current.rotation.y = (1 - easeOut) * Math.PI * 2;
+            }
+        }
+    });
 
     return (
-        <mesh geometry={geometry} castShadow receiveShadow>
-            <meshStandardMaterial color="#222222" roughness={0.3} metalness={0.2} />
-        </mesh>
+        <group ref={groupRef}>
+            <mesh geometry={geometry} castShadow receiveShadow>
+                <meshStandardMaterial color="#222222" roughness={0.3} metalness={0.2} />
+            </mesh>
+        </group>
     );
 }
 
 export function FrameViewer({
-                                options: _options,
                                 ready,
                                 frameData,
                                 stlUrl = 'ressources/steve_block.stl',
@@ -43,7 +64,6 @@ export function FrameViewer({
         if (!frameData?.stl_b64) return stlUrl;
 
         try {
-            // Decode base64 to binary byte array
             const binaryString = atob(frameData.stl_b64);
             const bytes = new Uint8Array(binaryString.length);
             for (let i = 0; i < binaryString.length; i++) {
@@ -67,6 +87,13 @@ export function FrameViewer({
         };
     }, [activeStlUrl]);
 
+    const downloadStl = () => {
+        const link = document.createElement('a');
+        link.href = activeStlUrl;
+        link.download = 'custom-frame.stl';
+        link.click();
+    };
+
     const downloadSvg = () => {
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="140mm" height="60mm" viewBox="0 0 140 60"><title>Contour OptiFrame</title><g fill="none" stroke="black" stroke-width="1"><ellipse cx="38" cy="30" rx="25" ry="18"/><ellipse cx="102" cy="30" rx="25" ry="18"/><path d="M63 30h14"/></g></svg>`;
         const link = document.createElement('a');
@@ -77,10 +104,10 @@ export function FrameViewer({
     };
 
     return (
-        <section className="panel viewer">
+        <section className="panel viewer" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             <div className="section-heading">
                 <div>
-                    <span className="eyebrow">Preview</span>
+                    <span className="eyebrow">3D Preview</span>
                     <h2>Your frame</h2>
                 </div>
                 <span className="preview-badge">3D STL</span>
@@ -96,7 +123,7 @@ export function FrameViewer({
                         <directionalLight position={[100, 100, 100]} intensity={1.2} />
                         <Suspense fallback={null}>
                             <Center>
-                                <STLModel url={activeStlUrl} />
+                                <AnimatedSTLModel key={activeStlUrl} url={activeStlUrl} />
                             </Center>
                         </Suspense>
                         <OrbitControls enableZoom makeDefault />
@@ -115,16 +142,30 @@ export function FrameViewer({
                 </div>
             )}
 
-            <div className="viewer-footer">
-                <p>
+            <div className="viewer-status" style={{ margin: '1rem 0 0.5rem 0' }}>
+                <p style={{ margin: 0 }}>
                     <span className="status-dot" />{' '}
-                    {ready ? 'Model ready to review' : 'Waiting for measurements'}
+                    {ready ? 'Model ready to download' : 'Waiting for measurements'}
                 </p>
+            </div>
+
+            {/* Action buttons at the bottom */}
+            <div className="viewer-actions" style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingTop: '1rem' }}>
+                <button
+                    className="button button--primary button--full"
+                    type="button"
+                    onClick={downloadStl}
+                    disabled={!ready}
+                    style={{ width: '100%', padding: '0.85rem', fontSize: '1rem' }}
+                >
+                    Download STL <span>↓</span>
+                </button>
                 <button
                     className="button button--secondary"
                     type="button"
                     onClick={downloadSvg}
                     disabled={!ready}
+                    style={{ width: '100%' }}
                 >
                     Export SVG contour
                 </button>

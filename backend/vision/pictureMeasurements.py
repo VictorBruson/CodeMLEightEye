@@ -5,37 +5,42 @@ from pathlib import Path
 from typing import Optional
 
 import cv2
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from .pipeline import process_image
+from .export import build_contract, DEFAULT_DBL_MM
 
-from pipeline import process_image
-from export import build_contract, DEFAULT_DBL_MM
-
-app = FastAPI()
-
+router = APIRouter()
 
 def _overlay_b64(img):
     ok, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 85])
     return "data:image/jpeg;base64," + base64.b64encode(buf).decode()
 
 
-async def _process_upload(upload: UploadFile, side: str):
-    # process_image() takes a path, so write the upload to a temp file first.
-    suffix = Path(upload.filename or "").suffix or ".jpg"
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=True) as tmp:
-        tmp.write(await upload.read())
-        tmp.flush()
-        try:
-            return process_image(tmp.name)
-        except ValueError as e:  # card not found, lens not found, unreadable image...
-            raise HTTPException(422, detail={"side": side, "message": str(e)})
+import os
 
+async def _process_upload(upload: UploadFile, side: str):
+    suffix = Path(upload.filename or "").suffix or ".jpg"
+
+    # Set delete=False so Windows releases the file handle for cv2
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(await upload.read())
+        tmp_path = tmp.name
+
+    try:
+        return process_image(tmp_path)
+    except ValueError as e:
+        raise HTTPException(422, detail={"side": side, "message": str(e)})
+    finally:
+        # Clean up the temp file after processing
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
 
 def _measurements(result):
     m = result["measurements"]
     return {"A_mm": round(m["width_mm"], 2), "B_mm": round(m["height_mm"], 2)}
 
 
-@app.post("/api/measure")
+@router.post("/api/measure")
 async def measure(
     left: UploadFile = File(...),
     right: UploadFile = File(...),
