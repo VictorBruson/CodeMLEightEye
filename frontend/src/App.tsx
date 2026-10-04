@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Camera } from '../components/Camera';
 import { FrameViewer } from '../components/FrameViewer';
 import { MeasurementOverlay } from '../components/MeasurementOverlay';
-import { measurePair } from './api';
+import { generateFrame, measurePair, type FrameApiResponse } from './api';
 import './App.css';
 
 interface LensPhoto {
@@ -10,6 +10,7 @@ interface LensPhoto {
   url: string;
   measurements: Record<string, number>;
   overlay?: string;
+  contract?: Record<string, unknown>;
 }
 
 type Screen = 'home' | 'left' | 'right' | 'results' | 'design';
@@ -21,6 +22,9 @@ function App() {
   const [showReference, setShowReference] = useState(false);
   const [isMeasuring, setIsMeasuring] = useState(false);
   const [measurementError, setMeasurementError] = useState<string>();
+  const [setFrameData] = useState<FrameApiResponse>();
+  const [frameError, setFrameError] = useState<string>();
+  const [isGeneratingFrame, setIsGeneratingFrame] = useState(false);
 
   const addPhoto = (side: 'left' | 'right', blob: Blob, url: string) => {
     (side === 'left' ? setLeft : setRight)({ blob, url, measurements: {} });
@@ -33,19 +37,33 @@ function App() {
     setMeasurementError(undefined);
     try {
       const result = await measurePair(left.blob, right.blob);
-      setLeft({ ...left, overlay: result.overlays.left, measurements: {
-          width: result.measurements.left.A_mm,
-          height: result.measurements.left.B_mm,
-        }});
-      setRight({ ...right, overlay: result.overlays.right, measurements: {
-          width: result.measurements.right.A_mm,
-          height: result.measurements.right.B_mm,
-        }});
+      setLeft({ ...left, contract: result.contract, overlay: result.overlays.left, measurements: {
+        width: result.measurements.left.A_mm,
+        height: result.measurements.left.B_mm,
+      }});
+      setRight({ ...right, contract: result.contract, overlay: result.overlays.right, measurements: {
+        width: result.measurements.right.A_mm,
+        height: result.measurements.right.B_mm,
+      }});
       setScreen('results');
     } catch (error) {
       setMeasurementError(error instanceof Error ? error.message : 'The lens images could not be measured.');
     } finally {
       setIsMeasuring(false);
+    }
+  };
+
+  const generateMeasuredFrame = async () => {
+    if (!left?.contract) return;
+    setIsGeneratingFrame(true);
+    setFrameError(undefined);
+    try {
+      setFrameData(await generateFrame(left.contract));
+      setScreen('design');
+    } catch (error) {
+      setFrameError(error instanceof Error ? error.message : 'The frame could not be generated.');
+    } finally {
+      setIsGeneratingFrame(false);
     }
   };
 
@@ -104,20 +122,21 @@ function App() {
             </section>
         )}
 
-        {screen === 'results' && (
-            <section className="mobile-screen results-screen">
-              <div className="screen-copy">
-                <span className="eyebrow">Step 3 of 3</span>
-                <h1>Your lens<br /><em>measurements.</em></h1>
-                <p>These measurements will guide your custom frame.</p>
-              </div>
-              <div className="mobile-results">
-                <div className="result-card"><h3>Left lens</h3><MeasurementOverlay imageUrl={left?.overlay ?? left?.url} measurements={left?.measurements} /></div>
-                <div className="result-card"><h3>Right lens</h3><MeasurementOverlay imageUrl={right?.overlay ?? right?.url} measurements={right?.measurements} /></div>
-              </div>
-              <button className="button button--primary next-button" type="button" onClick={() => setScreen('design')}>View frame model <span>→</span></button>
-            </section>
-        )}
+      {screen === 'results' && (
+        <section className="mobile-screen results-screen">
+          <div className="screen-copy">
+            <span className="eyebrow">Step 3 of 3</span>
+            <h1>Your lens<br /><em>measurements.</em></h1>
+            <p>These measurements will guide your custom frame.</p>
+          </div>
+          <div className="mobile-results">
+            <div className="result-card"><h3>Left lens</h3><MeasurementOverlay imageUrl={left?.overlay ?? left?.url} measurements={left?.measurements} /></div>
+            <div className="result-card"><h3>Right lens</h3><MeasurementOverlay imageUrl={right?.overlay ?? right?.url} measurements={right?.measurements} /></div>
+          </div>
+          {frameError && <p className="form-error" role="alert">{frameError}</p>}
+          <button className="button button--primary next-button" type="button" onClick={() => void generateMeasuredFrame()} disabled={isGeneratingFrame}>{isGeneratingFrame ? 'Generating frame…' : 'Design my frame'} <span>→</span></button>
+        </section>
+      )}
 
         {screen === 'design' && (
             <section className="mobile-screen design-screen">

@@ -27,6 +27,7 @@ class Lens:
     A: float
     B: float
     perimeter: float
+    flipped: bool = False
 
 
 def from_image_coords(pts):
@@ -123,7 +124,7 @@ def lens_from_points(points, eye, flipped=False, params=None, name=None):
             "size_out_of_range",
             "This lens looks too small or too large. Check the reference object.", name)
 
-    return Lens(poly=poly, eye=eye, A=A, B=B, perimeter=poly.length)
+    return Lens(poly=poly, eye=eye, A=A, B=B, perimeter=poly.length, flipped=bool(flipped))
 
 
 def lens_from_dict(d, params=None, name=None):

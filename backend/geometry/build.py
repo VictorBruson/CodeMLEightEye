@@ -1,11 +1,15 @@
 import base64
+import logging
 
 import numpy as np
 
 from .bridge import make_bridge, make_tenons, place_lenses
+from .contourSVG import contour_sheet_svg
 from .frame import build_solid
 from .lens import GeometryError, lens_from_dict
 from .params import FrameParams
+
+log = logging.getLogger("optiframe")
 
 DBL_MIN, DBL_MAX = 8.0, 30.0
 
@@ -63,9 +67,19 @@ def build_from_contract(data):
     mesh, report, _ = build_frame(left, right, dbl, params)
     report["warnings"] = warnings + report["warnings"]
     stl = mesh.export(file_type="stl")
+
+    # The 1:1 trace is a secondary output: if it fails, still return the frame.
+    try:
+        contour_svg = contour_sheet_svg([left, right])
+    except Exception:
+        log.exception("contour svg failed")
+        contour_svg = None
+        report["warnings"].append("The contour sheet could not be generated.")
+
     response = {
         "version": 1,
         "stl_b64": base64.b64encode(stl).decode("ascii"),
+        "contour_svg": contour_svg,
         "left": {"eye": left.eye, "A": round(left.A, 2), "B": round(left.B, 2),
                  "perimeter": round(left.perimeter, 2)},
         "right": {"eye": right.eye, "A": round(right.A, 2), "B": round(right.B, 2),
