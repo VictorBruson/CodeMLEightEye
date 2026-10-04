@@ -8,8 +8,10 @@ export default defineConfig({
     // Allows any localtunnel or cloudflared host to connect
     allowedHosts: true,
     proxy: {
-      '/api': 'http://localhost:8000',
-      '/frame': 'http://localhost:8001',
+      '/api': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
     },
   },
 })

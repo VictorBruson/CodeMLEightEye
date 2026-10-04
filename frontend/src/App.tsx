@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Camera } from '../components/Camera';
 import { FrameViewer } from '../components/FrameViewer';
 import { MeasurementOverlay } from '../components/MeasurementOverlay';
@@ -22,9 +22,20 @@ function App() {
   const [showReference, setShowReference] = useState(false);
   const [isMeasuring, setIsMeasuring] = useState(false);
   const [measurementError, setMeasurementError] = useState<string>();
-  const [setFrameData] = useState<FrameApiResponse>();
+  const [frameData, setFrameData] = useState<FrameApiResponse>();
   const [frameError, setFrameError] = useState<string>();
   const [isGeneratingFrame, setIsGeneratingFrame] = useState(false);
+  const [runtimeError, setRuntimeError] = useState<string>();
+
+  // Log every state transition to the browser console
+  useEffect(() => {
+    console.log(`[DEBUG] Current Screen: ${screen}`, {
+      hasLeft: Boolean(left),
+      hasRight: Boolean(right),
+      hasContract: Boolean(left?.contract),
+      hasFrameData: Boolean(frameData),
+    });
+  }, [screen, left, right, frameData]);
 
   const addPhoto = (side: 'left' | 'right', blob: Blob, url: string) => {
     (side === 'left' ? setLeft : setRight)({ blob, url, measurements: {} });
@@ -38,13 +49,13 @@ function App() {
     try {
       const result = await measurePair(left.blob, right.blob);
       setLeft({ ...left, contract: result.contract, overlay: result.overlays.left, measurements: {
-        width: result.measurements.left.A_mm,
-        height: result.measurements.left.B_mm,
-      }});
+          width: result.measurements.left.A_mm,
+          height: result.measurements.left.B_mm,
+        }});
       setRight({ ...right, contract: result.contract, overlay: result.overlays.right, measurements: {
-        width: result.measurements.right.A_mm,
-        height: result.measurements.right.B_mm,
-      }});
+          width: result.measurements.right.A_mm,
+          height: result.measurements.right.B_mm,
+        }});
       setScreen('results');
     } catch (error) {
       setMeasurementError(error instanceof Error ? error.message : 'The lens images could not be measured.');
@@ -58,7 +69,9 @@ function App() {
     setIsGeneratingFrame(true);
     setFrameError(undefined);
     try {
-      setFrameData(await generateFrame(left.contract));
+      const data = await generateFrame(left.contract);
+      console.log('[DEBUG] generateFrame output:', data);
+      setFrameData(data);
       setScreen('design');
     } catch (error) {
       setFrameError(error instanceof Error ? error.message : 'The frame could not be generated.');
@@ -80,11 +93,16 @@ function App() {
 
   return (
       <main className={`mobile-app mobile-app--${screen}`}>
+        {/* On-Screen Live Debug Overlay */}
+        <div style={{ background: '#111', color: '#0f0', padding: '6px 12px', fontSize: '12px', fontFamily: 'monospace', zIndex: 9999, position: 'relative' }}>
+          Screen: {screen} | frameData: {frameData ? 'VALID' : 'MISSING'} | leftContract: {left?.contract ? 'YES' : 'NO'}
+        </div>
+
         <header className="mobile-header">
           {screen !== 'home' ? (
               <button className="icon-button" type="button" onClick={goBack} aria-label="Go back">←</button>
           ) : <span className="header-spacer" />}
-          <a className="mobile-brand" href="/" aria-label="EightEye home">
+          <a className="mobile-brand" href="#" onClick={(e) => e.preventDefault()} aria-label="EightEye home">
             <span className="brand-mark">8</span> Eight<span>Eye</span>
           </a>
           {currentStep > 0 ? <span className="step-indicator">{currentStep} / 3</span> : <span className="header-spacer" />}
@@ -122,27 +140,40 @@ function App() {
             </section>
         )}
 
-      {screen === 'results' && (
-        <section className="mobile-screen results-screen">
-          <div className="screen-copy">
-            <span className="eyebrow">Step 3 of 3</span>
-            <h1>Your lens<br /><em>measurements.</em></h1>
-            <p>These measurements will guide your custom frame.</p>
-          </div>
-          <div className="mobile-results">
-            <div className="result-card"><h3>Left lens</h3><MeasurementOverlay imageUrl={left?.overlay ?? left?.url} measurements={left?.measurements} /></div>
-            <div className="result-card"><h3>Right lens</h3><MeasurementOverlay imageUrl={right?.overlay ?? right?.url} measurements={right?.measurements} /></div>
-          </div>
-          {frameError && <p className="form-error" role="alert">{frameError}</p>}
-          <button className="button button--primary next-button" type="button" onClick={() => void generateMeasuredFrame()} disabled={isGeneratingFrame}>{isGeneratingFrame ? 'Generating frame…' : 'Design my frame'} <span>→</span></button>
-        </section>
-      )}
+        {screen === 'results' && (
+            <section className="mobile-screen results-screen">
+              <div className="screen-copy">
+                <span className="eyebrow">Step 3 of 3</span>
+                <h1>Your lens<br /><em>measurements.</em></h1>
+                <p>These measurements will guide your custom frame.</p>
+              </div>
+              <div className="mobile-results">
+                <div className="result-card"><h3>Left lens</h3><MeasurementOverlay imageUrl={left?.overlay ?? left?.url} measurements={left?.measurements} /></div>
+                <div className="result-card"><h3>Right lens</h3><MeasurementOverlay imageUrl={right?.overlay ?? right?.url} measurements={right?.measurements} /></div>
+              </div>
+              {frameError && <p className="form-error" role="alert">{frameError}</p>}
+              <button className="button button--primary next-button" type="button" onClick={() => void generateMeasuredFrame()} disabled={isGeneratingFrame}>{isGeneratingFrame ? 'Generating frame…' : 'Design my frame'} <span>→</span></button>
+            </section>
+        )}
 
         {screen === 'design' && (
             <section className="mobile-screen design-screen">
-              <FrameViewer ready={Boolean(left && right)} />
+              {runtimeError ? (
+                  <div style={{ color: 'red', padding: '1rem' }}>
+                    <h3>Error Loading Design:</h3>
+                    <p>{runtimeError}</p>
+                  </div>
+              ) : frameData ? (
+                  <FrameViewer ready={Boolean(left && right)} frameData={frameData} />
+              ) : (
+                  <div style={{ padding: '1rem', textAlign: 'center' }}>
+                    <p>No 3D frame data returned from backend.</p>
+                    <button type="button" onClick={() => setScreen('results')}>Back to results</button>
+                  </div>
+              )}
             </section>
         )}
+
         {screen === 'left' && showReference && (
             <div className="modal-backdrop" role="presentation">
               <section className="reference-modal" role="dialog" aria-modal="true" aria-labelledby="reference-title">

@@ -86,12 +86,24 @@ export function FrameViewer({
     };
 
     const downloadSvg = () => {
-        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="140mm" height="60mm" viewBox="0 0 140 60"><title>Contour OptiFrame</title><g fill="none" stroke="black" stroke-width="1"><ellipse cx="38" cy="30" rx="25" ry="18"/><ellipse cx="102" cy="30" rx="25" ry="18"/><path d="M63 30h14"/></g></svg>`;
+        // 1. Use the full SVG string returned from the API response
+        let svgContent = frameData?.contour_svg;
+
+        // 2. Fallback SVG if frameData or contour_svg is missing
+        if (!svgContent) {
+            svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="140mm" height="60mm" viewBox="0 0 140 60"><title>Contour OptiFrame</title><g fill="none" stroke="black" stroke-width="1"><ellipse cx="38" cy="30" rx="25" ry="18"/><ellipse cx="102" cy="30" rx="25" ry="18"/><path d="M63 30h14"/></g></svg>`;
+        }
+
+        // 3. Create blob and download file
+        const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
-        link.href = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+        link.href = url;
         link.download = 'optiframe-contour.svg';
         link.click();
-        URL.revokeObjectURL(link.href);
+
+        // 4. Revoke temporary object URL
+        URL.revokeObjectURL(url);
     };
 
     return (

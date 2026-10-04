@@ -1,5 +1,4 @@
 const API_URL = import.meta.env.VITE_API_URL ?? '';
-const FRAME_API_URL = import.meta.env.VITE_FRAME_API_URL ?? '';
 
 export interface MeasureResponse {
   contract: Record<string, unknown>;
@@ -22,6 +21,7 @@ export interface FrameApiResponse {
   bbox_mm: [number, number, number];
   validation: { watertight: boolean; single_body: boolean; overhang_fraction: number };
   warnings: string[];
+  contour_svg: string;
 }
 
 export async function measurePair(left: Blob, right: Blob): Promise<MeasureResponse> {
@@ -45,7 +45,7 @@ export async function measurePair(left: Blob, right: Blob): Promise<MeasureRespo
 }
 
 export async function generateFrame(contract: Record<string, unknown>): Promise<FrameApiResponse> {
-  const response = await fetch(`${FRAME_API_URL}/frame`, {
+  const response = await fetch(`${API_URL}/api/frame`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(contract),
