@@ -14,7 +14,18 @@ class FrameParams:
     clearance: float = 0.2
     wall: float = 3.0
     thickness: float = 4.5
-    groove_depth: float = 0.5
+    groove_depth: float = 0.5      # how far the entry lip reaches in past the pocket wall;
+                                   # snap overlap on the lens = groove_depth - clearance
+
+    # --- lens retention: the hole is a stack of layers, built up from the bed (z = 0) ---
+    #   ledge (the lens rests on it) -> pocket (holds the lens edge)
+    #   -> 45-degree entry lip (the lens clicks past it) -> open top
+    lens_edge_thickness: float = 2.0  # thickness of the lens edge = height of the pocket
+    ledge_thickness: float = 0.8      # height of the ledge on the bed side
+    ledge_width: float = 0.8          # how far the ledge reaches in under the lens edge
+    lip_height: float = 1.0           # height of the 45-degree entry lip
+    lip_steps: int = 4                # stair steps used to approximate that 45-degree slope
+
     bridge_height: float = 4.0
     bridge_thickness: float = 3.0
     bridge_offset_y: float = 0.0   # bridge center above (+) / below (-) the boxing line

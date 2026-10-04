@@ -5,7 +5,7 @@ import numpy as np
 
 from .bridge import make_bridge, make_tenons, place_lenses
 from .contourSVG import contour_sheet_svg
-from .frame import build_solid
+from .frame import build_solid, check_retention
 from .lens import GeometryError, lens_from_dict
 from .params import FrameParams
 
@@ -33,6 +33,7 @@ def build_frame(lens_a, lens_b, dbl, params=None):
     params = params or FrameParams()
     if not (DBL_MIN <= dbl <= DBL_MAX):
         raise GeometryError("bad_dbl", f"Bridge width must be between {DBL_MIN:g} and {DBL_MAX:g} mm.")
+    retention_warnings = check_retention(params)
     placed = place_lenses(lens_a, lens_b, dbl)
     bridge = make_bridge(placed, params)
     tenons = make_tenons(placed, params)
@@ -43,7 +44,7 @@ def build_frame(lens_a, lens_b, dbl, params=None):
         "dbl_mm": dbl,
         "bbox_mm": [round(float(v), 2) for v in mesh.extents],
         "validation": _validate(mesh, params),
-        "warnings": [],
+        "warnings": list(retention_warnings),
     }
     v = report["validation"]
     if v["overhang_fraction"] > 0.05:
