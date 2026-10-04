@@ -79,8 +79,13 @@ export function Camera({ eye, imageUrl, autoStart = false, onCapture }: CameraPr
     <section className="capture-card">
       <div className="capture-card__heading">
         <div>
-          <span className="eyebrow">Step 1</span>
-          <h2>{eye === 'left' ? 'Left' : 'Right'} lens</h2>
+          <span className="eyebrow">{eye === 'left' ? 'Step 1 of 3' : 'Step 2 of 3'}</span>
+          <h2>Capture the {eye === 'left' ? 'left' : 'right'} lens.</h2>
+          <p className="capture-instruction">
+            {eye === 'left'
+              ? 'Place the lens and card in the frame, then take a clear photo from above.'
+              : 'Keep the same setup and make sure the entire lens is visible.'}
+          </p>
         </div>
         {imageUrl && <span className="status-pill">Photo added</span>}
       </div>
