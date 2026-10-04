@@ -111,14 +111,11 @@ function App() {
           <FrameCustomizer options={options} onChange={setOptions} />
         </section>
       )}
-      {showReference && (
+      {screen === 'left' && showReference && (
         <div className="modal-backdrop" role="presentation">
           <section className="reference-modal" role="dialog" aria-modal="true" aria-labelledby="reference-title">
             <button className="modal-close" type="button" onClick={() => setShowReference(false)} aria-label="Close instructions">×</button>
-            <div className="instruction-art instruction-art--modal" aria-hidden="true">
-              <div className="credit-card"><span>VISA</span><i /></div>
-              <div className="instruction-lens" />
-            </div>
+            <img className="reference-photo" src="/lens-card-reference.svg" alt="A lens and credit card aligned side by side" />
             <span className="eyebrow">Before you take the photo</span>
             <h2 id="reference-title">Place your lens next to a card.</h2>
             <p>A standard bank or credit card gives us a known size to measure your lens accurately. Put both on a flat, plain surface.</p>

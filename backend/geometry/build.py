@@ -2,7 +2,7 @@ import base64
 
 import numpy as np
 
-from .bridge import make_bridge, place_lenses
+from .bridge import make_bridge, make_tenons, place_lenses
 from .frame import build_solid
 from .lens import GeometryError, lens_from_dict
 from .params import FrameParams
@@ -31,7 +31,8 @@ def build_frame(lens_a, lens_b, dbl, params=None):
         raise GeometryError("bad_dbl", f"Bridge width must be between {DBL_MIN:g} and {DBL_MAX:g} mm.")
     placed = place_lenses(lens_a, lens_b, dbl)
     bridge = make_bridge(placed, params)
-    mesh = build_solid(placed, bridge, params)
+    tenons = make_tenons(placed, params)
+    mesh = build_solid(placed, bridge, tenons, params)
 
     by_eye = {lens_a.eye: lens_a, lens_b.eye: lens_b}
     report = {
