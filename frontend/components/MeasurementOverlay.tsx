@@ -1,6 +1,9 @@
 export interface MeasurementOverlayProps {
   imageUrl?: string;
-  measurements?: Record<string, number>;
+  measurements?: {
+    width?: number;
+    height?: number;
+  };
 }
 
 export function MeasurementOverlay({ imageUrl, measurements }: MeasurementOverlayProps) {
@@ -17,17 +20,10 @@ export function MeasurementOverlay({ imageUrl, measurements }: MeasurementOverla
     <div className="measurement-result">
       <div className="measurement-image">
         <img src={imageUrl} alt="Measured contour preview" />
-        <div className="measurement-outline" aria-hidden="true">
-          <span className="measure-line measure-line--width" />
-          <span className="measure-line measure-line--height" />
-        </div>
-        <span className="measure-label measure-label--width">{measurements?.width ?? 50} mm</span>
-        <span className="measure-label measure-label--height">{measurements?.height ?? 36} mm</span>
       </div>
       <div className="measurement-stats">
-        <div><span>Width A</span><strong>{measurements?.width ?? 50} mm</strong></div>
-        <div><span>Height B</span><strong>{measurements?.height ?? 36} mm</strong></div>
-        <div><span>Perimeter</span><strong>{measurements?.perimeter ?? 137} mm</strong></div>
+        <div><span>Width A</span><strong>{measurements?.width ?? '—'}{measurements?.width !== undefined && ' mm'}</strong></div>
+        <div><span>Height B</span><strong>{measurements?.height ?? '—'}{measurements?.height !== undefined && ' mm'}</strong></div>
       </div>
     </div>
   );

@@ -3,17 +3,7 @@ import { Canvas, useLoader } from '@react-three/fiber';
 import { OrbitControls, Center } from '@react-three/drei';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import type { FrameOptions } from './FrameCustomizer';
-
-export interface FrameApiResponse {
-    version: number;
-    stl_b64: string;
-    left: { eye: string; A: number; B: number; perimeter: number };
-    right: { eye: string; A: number; B: number; perimeter: number };
-    dbl_mm: number;
-    bbox_mm: [number, number, number];
-    validation: { watertight: boolean; single_body: boolean; overhang_fraction: number };
-    warnings: string[];
-}
+import type { FrameApiResponse } from '../src/api';
 
 export interface FrameViewerProps {
     options: FrameOptions;

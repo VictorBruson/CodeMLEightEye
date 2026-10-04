@@ -9,6 +9,7 @@ export default defineConfig({
     allowedHosts: true,
     proxy: {
       '/api': 'http://localhost:8000',
+      '/frame': 'http://localhost:8001',
     },
   },
 })
