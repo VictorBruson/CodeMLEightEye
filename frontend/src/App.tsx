@@ -43,8 +43,8 @@ function App() {
         {screen !== 'home' ? (
           <button className="icon-button" type="button" onClick={goBack} aria-label="Go back">←</button>
         ) : <span className="header-spacer" />}
-        <a className="mobile-brand" href="/" aria-label="OptiFrame home">
-          <span className="brand-mark">◒</span> Opti<span>Frame</span>
+        <a className="mobile-brand" href="/" aria-label="EightEye home">
+          <span className="brand-mark">8</span> Eight<span>Eye</span>
         </a>
         {currentStep > 0 ? <span className="step-indicator">{currentStep} / 3</span> : <span className="header-spacer" />}
       </header>
