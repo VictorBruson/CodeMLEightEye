@@ -69,9 +69,7 @@ def export_contract(left_image, right_image, out_path="frame_input.json",
               f"B={result['measurements']['height_mm']:.2f} mm  ({path})")
         if debug:
             # Always look at these: they show what the code actually "saw".
-            cv2.imwrite(f"debug_{side}_warped.jpg", result["warped_image"])
-            cv2.imwrite(f"debug_{side}_overlay.jpg", result["overlay_image"])
-            cv2.imwrite(f"debug_{side}_mask.png", result["lens_mask"])
+            cv2.imwrite(f"{side}_overlay.jpg", result["overlay_image"])
 
     data = build_contract(results[left_image], results[right_image], dbl_mm=dbl_mm,
                           params=params, left_flipped=left_flipped,
@@ -91,7 +89,7 @@ if __name__ == "__main__":
         description="Measure lenses and write the build_frame() input JSON."
     )
 
-    default_image = Path(__file__).parent / "test_image2.jpg"
+    default_image = Path(__file__).parent / "test_image.jpg"
 
     ap.add_argument(
         "left",
@@ -99,7 +97,7 @@ if __name__ == "__main__":
         default=str(default_image),
         help="photo of the lens for the wearer's LEFT eye"
     )
-    ap.add_argument("right", nargs="?", default=None,
+    ap.add_argument("right", nargs="?", default=str(default_image),
                     help="photo of the lens for the RIGHT eye (default: same photo as left)")
     ap.add_argument("-o", "--out", default="frame_input.json")
     ap.add_argument("--dbl", type=float, default=DEFAULT_DBL_MM, help="bridge width in mm (8-30)")
